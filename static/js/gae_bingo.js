@@ -3,7 +3,7 @@
 // 
 // because JSON.stringify is still not widely supported, consider including
 // json2.js from https://github.com/douglascrockford/JSON-js 
-// *if window.JSON is not found, gae_bingo will silently do nothing.*
+// *if window.JSON is not found, gae_bingo.ab_test will silently do nothing.*
 
 // gae_bingo is available on the dashboard page if you open a console and want
 // to test it out.
@@ -103,7 +103,7 @@ var gae_bingo = (function() {
     });
   };
 
-  // convert triggers a bingo. 
+  // convert triggers a bingo.
   // **conversion** may be either the ab_test name or a specific conversion that was
   //   created when the ab_test was initialized
   // on success, no data is returned but `successCallback` is fired anyway
@@ -113,19 +113,17 @@ var gae_bingo = (function() {
     // set defaults for callbacks
     errorCallback = errorCallback || defaultError;
     successCallback = successCallback || defaultSuccess;
-    
-    var stringify = window.JSON.stringify || $.noop;
 
-    var post_conversion = function(name){
-      jQuery.ajax({
-        url: path + "bingo",
-        type : "POST",
-        data : { convert : name },
-        success : successCallback,
-        error : errorCallback
-      });
-    };
-    
+    jQuery.ajax({
+      url: path + "bingo",
+      type : "POST",
+      data : {
+        convert : $.isArray(conversion) ? conversion.join("\t") : conversion
+      },
+      success : successCallback,
+      error : errorCallback
+    });
+  };
 
     if( $.isArray( conversion ) ) {
       $.each( conversion, function( i, v ) {
