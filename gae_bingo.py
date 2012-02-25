@@ -143,13 +143,13 @@ def score_conversion(experiment_name, canonical_name):
         # Don't count conversions for short-circuited experiments that are no longer live
         return
 
-    if experiment_name in bingo_identity_cache.converted_tests and experiment.conversion_type!=ConversionTypes.Counting:
+    if experiment.conversion_type != ConversionTypes.Counting and experiment_name in bingo_identity_cache.converted_tests:
+        # Only allow multiple conversions for ConversionTypes.Counting experiments
         return
 
     alternative = find_alternative_for_user(canonical_name, bingo_cache.get_alternatives(experiment_name))
 
     alternative.increment_conversions()
-    bingo_cache.update_alternative(alternative)
 
     bingo_identity_cache.convert_in(experiment_name)
 

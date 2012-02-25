@@ -77,9 +77,12 @@ class BingoCache(object):
         memcache.set(BingoCache.MEMCACHE_KEY, self)
 
     def persist_to_datastore(self):
+        """ Persist current state of experiment and alternative models to
+        datastore. Their sums might be slightly out-of-date during any
+        given persist, but not by much.
 
-        # Persist current state of experiment and alternative models to datastore.
-        # Their sums might be slightly out-of-date during any given persist, but not by much.
+        """
+
         for experiment_name in self.experiments:
             experiment_model = self.get_experiment(experiment_name)
             if experiment_model:
@@ -91,6 +94,12 @@ class BingoCache(object):
                 # When persisting to datastore, we want to store the most recent value we've got
                 alternative_model.load_latest_counts()
                 alternative_model.put()
+                self.update_alternative(alternative_model)
+
+        # When periodically persisting to datastore, also make sure memcache
+        # has relatively up-to-date participant/conversion counts for each alternative.
+        self.dirty = True
+        self.store_if_dirty()
 
     def log_cache_snapshot(self):
 
@@ -111,8 +120,7 @@ class BingoCache(object):
         alternative_models = self.get_alternatives(experiment_model.name)
         for alternative_model in alternative_models:
             # When logging, we want to store the most recent value we've got
-            alternative_model.load_latest_counts()
-            log_entry = _GAEBingoSnapshotLog(parent=experiment_model, alternative_number=alternative_model.number, conversions=alternative_model.conversions, participants=alternative_model.participants)
+            log_entry = _GAEBingoSnapshotLog(parent=experiment_model, alternative_number=alternative_model.number, conversions=alternative_model.latest_conversions_count(), participants=alternative_model.latest_participants_count())
             log_entries.append(log_entry)
 
         return log_entries

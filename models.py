@@ -1,6 +1,5 @@
 import pickle
 import datetime
-import logging
 
 from google.appengine.ext import db
 from google.appengine.api import memcache
@@ -48,6 +47,10 @@ class _GAEBingoExperiment(db.Model):
     @property
     def pretty_canonical_name(self):
         return self.canonical_name.capitalize().replace("_", " ")
+
+    @property
+    def hashable_name(self):
+        return self.family_name if self.family_name else self.canonical_name
 
     @property
     def status(self):
@@ -122,14 +125,19 @@ class _GAEBingoAlternative(db.Model):
         # be persisted.
         self.conversions = long(memcache.incr("%s:conversions" % self.key_for_self(), initial_value=self.conversions))
 
+    def latest_participants_count(self):
+        return max(self.participants, long(memcache.get("%s:participants" % self.key_for_self()) or 0))
+
+    def latest_conversions_count(self):
+        return max(self.conversions, long(memcache.get("%s:conversions" % self.key_for_self()) or 0))
+
     def reset_counts(self):
         memcache.delete_multi(["%s:participants" % self.key_for_self(), "%s:conversions" % self.key_for_self()])
 
     def load_latest_counts(self):
         # When persisting to datastore, we want to store the most recent value we've got
-        self.participants = max(self.participants, long(memcache.get("%s:participants" % self.key_for_self()) or 0))
-        self.conversions = max(self.conversions, long(memcache.get("%s:conversions" % self.key_for_self()) or 0))
-        
+        self.participants = self.latest_participants_count()
+        self.conversions = self.latest_conversions_count()
 
 class _GAEBingoSnapshotLog(db.Model):
     alternative_number = db.IntegerProperty()
