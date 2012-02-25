@@ -49,8 +49,16 @@ class RunStep(RequestHandler):
             v = self.end_and_choose()
         elif step == "persist":
             v = self.persist()
-        elif step == "flush_memcache":
-            v = self.flush_memcache()
+        elif step == "flush_hippo_counts_memcache":
+            v = self.flush_hippo_counts_memcache()
+        elif step == "flush_bingo_memcache":
+            v = self.flush_bingo_memcache()
+        elif step == "flush_all_memcache":
+            v = self.flush_all_memcache()
+        elif step == "create_monkeys_redirect_url":
+            v = self.create_monkeys_redirect_url()
+        elif step == "create_chimps_redirect_url":
+            v = self.create_chimps_redirect_url()
 
         self.response.out.write(simplejson.dumps(v))
 
@@ -103,7 +111,7 @@ class RunStep(RequestHandler):
         dict_conversions = {}
 
         for alternative in BingoCache.get().get_alternatives(self.request.get("experiment_name")):
-            dict_conversions[alternative.content] = alternative.conversions
+            dict_conversions[alternative.content] = alternative.latest_conversions_count()
 
         return dict_conversions
 
@@ -115,6 +123,20 @@ class RunStep(RequestHandler):
         BingoIdentityCache.persist_buckets_to_datastore()
         return True
 
-    def flush_memcache(self):
+    def flush_hippo_counts_memcache(self):
+        experiments, alternative_lists = BingoCache.get().experiments_and_alternatives_from_canonical_name("hippos")
+
+        for alternatives in alternative_lists:
+            for alternative in alternatives:
+                memcache.delete("%s:conversions" % alternative.key_for_self())
+                memcache.delete("%s:participants" % alternative.key_for_self())
+
+        return True
+
+    def flush_bingo_memcache(self):
+        memcache.delete(BingoCache.MEMCACHE_KEY)
+        return True
+
+    def flush_all_memcache(self):
         memcache.flush_all()
         return True
