@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import base64
-import logging
 import os
 import re
 
@@ -24,8 +23,19 @@ def logged_in_bingo_identity():
 
     return LOGGED_IN_IDENTITY_CACHE
 
-def identity():
+def identity(identity_val=None):
+    """ Determines the Bingo identity for the specified user. If no user
+    is specified, this will attempt to infer one based on cookies/logged in user
+
+
+    identity_val -- a string or instance of GAEBingoIdentityModel specifying
+    which bingo identity to retrieve.
+    """
     global IDENTITY_CACHE
+
+    if identity_val:
+        # Don't cache for arbitrarily passed in identity_val
+        return bingo_identity_for_value(identity_val, associate_with_cookie=False)
 
     if IDENTITY_CACHE is None:
 

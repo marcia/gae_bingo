@@ -1,16 +1,21 @@
-import logging
 import hashlib
 import os
 import cgi
 import time
+import urllib
 
 from google.appengine.api import memcache
 
 from .cache import BingoCache, bingo_and_identity_cache
 from .models import create_experiment_and_alternatives, ConversionTypes
 from .identity import identity
+from .config import can_control_experiments
 
-def ab_test(canonical_name, alternative_params = None, conversion_name = None, conversion_type = ConversionTypes.Binary):
+def ab_test(canonical_name,
+            alternative_params = None,
+            conversion_name = None,
+            conversion_type = ConversionTypes.Binary,
+            family_name = None):
 
     bingo_cache, bingo_identity_cache = bingo_and_identity_cache()
 
@@ -60,7 +65,8 @@ def ab_test(canonical_name, alternative_params = None, conversion_name = None, c
                                     canonical_name,
                                     alternative_params, 
                                     conversion_name,
-                                    conversion_type
+                                    conversion_type,
+                                    family_name
                                     )
 
                     bingo_cache.add_experiment(exp, alts)
@@ -92,13 +98,13 @@ def ab_test(canonical_name, alternative_params = None, conversion_name = None, c
 
         else:
 
-            alternative = find_alternative_for_user(canonical_name, alternatives)
+            alternative = _find_alternative_for_user(experiment.hashable_name,
+                                                    alternatives)
 
             if experiment.name not in bingo_identity_cache.participating_tests:
                 bingo_identity_cache.participate_in(experiment.name)
 
                 alternative.increment_participants()
-                bingo_cache.update_alternative(alternative)
 
             # It shouldn't matter which experiment's alternative content we send back --
             # alternative N should be the same across all experiments w/ same canonical name.
@@ -111,26 +117,20 @@ def bingo(param):
     if type(param) == list:
 
         # Bingo for all conversions in list
-        for experiment_name in param:
-            bingo(experiment_name)
+        for conversion_name in param:
+            bingo(conversion_name)
         return
 
     else:
 
         conversion_name = str(param)
-        canonical_name = None
         bingo_cache = BingoCache.get()
 
         # Bingo for all experiments associated with this conversion
         for experiment_name in bingo_cache.get_experiment_names_by_conversion_name(conversion_name):
+            score_conversion(experiment_name)
 
-            if not canonical_name:
-                experiment = bingo_cache.get_experiment(experiment_name)
-                canonical_name = experiment.canonical_name
-
-            score_conversion(experiment_name, canonical_name)
-
-def score_conversion(experiment_name, canonical_name):
+def score_conversion(experiment_name):
 
     bingo_cache, bingo_identity_cache = bingo_and_identity_cache()
 
@@ -147,7 +147,7 @@ def score_conversion(experiment_name, canonical_name):
         # Only allow multiple conversions for ConversionTypes.Counting experiments
         return
 
-    alternative = find_alternative_for_user(canonical_name, bingo_cache.get_alternatives(experiment_name))
+    alternative = _find_alternative_for_user(experiment.hashable_name, bingo_cache.get_alternatives(experiment_name))
 
     alternative.increment_conversions()
 
@@ -185,9 +185,7 @@ def delete_experiment(canonical_name):
     if not experiments or not alternative_lists:
         return
 
-    for i in range(len(experiments)):
-        experiment, alternatives = experiments[i], alternative_lists[i]
-
+    for experiment in experiments:
         if experiment.live:
             raise Exception("Cannot delete a live experiment")
 
@@ -204,17 +202,53 @@ def resume_experiment(canonical_name):
     if not experiments or not alternative_lists:
         return
 
-    for i in range(len(experiments)):
-        experiment, alternatives = experiments[i], alternative_lists[i]
-
+    for experiment in experiments:
         experiment.live = True
-
         bingo_cache.update_experiment(experiment)
 
-def find_alternative_for_user(experiment_name, alternatives):
+def find_alternative_for_user(canonical_name, identity_val):
+    """ Returns the alternative that the specified bingo identity belongs to.
+    If the experiment does not exist, this will return None.
+    If the experiment has ended, this will return the chosen alternative.
+    Note that the user may not have been opted into the experiment yet - this
+    is just a way to probe what alternative will be selected, or has been
+    selected for the user without causing side effects.
 
-    if os.environ["SERVER_SOFTWARE"].startswith('Development'):
-        # If dev server, allow possible override of alternative
+    If an experiment has multiple instances (because it was created with
+    different alternative sets), will operate on the last experiment.
+
+    canonical_name -- the canonical name of the experiment
+    identity_val -- a string or instance of GAEBingoIdentity
+
+    """
+
+    bingo_cache = BingoCache.get()
+    experiment_names = bingo_cache.get_experiment_names_by_canonical_name(
+            canonical_name)
+
+    if not experiment_names:
+        return None
+
+    experiment_name = experiment_names[-1]
+    experiment = bingo_cache.get_experiment(experiment_name)
+
+    if not experiment:
+        return None
+
+    if not experiment.live:
+        # Experiment has ended - return result that was selected.
+        return experiment.short_circuit_content
+
+    return _find_alternative_for_user(experiment.hashable_name,
+                                      bingo_cache.get_alternatives(experiment_name),
+                                      identity_val).content
+
+def _find_alternative_for_user(experiment_hashable_name,
+                               alternatives,
+                               identity_val=None):
+
+    if can_control_experiments():
+        # If gae_bingo administrator, allow possible override of alternative
         qs_dict = cgi.parse_qs(os.environ.get("QUERY_STRING") or "")
 
         alternative_number_override = qs_dict.get("gae_bingo_alternative_number")
