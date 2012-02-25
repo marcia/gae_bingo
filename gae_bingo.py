@@ -65,7 +65,7 @@ def ab_test(canonical_name,
                                     canonical_name,
                                     alternative_params, 
                                     conversion_name,
-                                    conversion_type,
+                                    conversion_type, 
                                     family_name
                                     )
 
@@ -213,22 +213,22 @@ def find_alternative_for_user(canonical_name, identity_val):
     Note that the user may not have been opted into the experiment yet - this
     is just a way to probe what alternative will be selected, or has been
     selected for the user without causing side effects.
-
+    
     If an experiment has multiple instances (because it was created with
     different alternative sets), will operate on the last experiment.
-
+    
     canonical_name -- the canonical name of the experiment
     identity_val -- a string or instance of GAEBingoIdentity
-
+    
     """
-
+    
     bingo_cache = BingoCache.get()
     experiment_names = bingo_cache.get_experiment_names_by_canonical_name(
             canonical_name)
-
+    
     if not experiment_names:
         return None
-
+    
     experiment_name = experiment_names[-1]
     experiment = bingo_cache.get_experiment(experiment_name)
 
@@ -273,3 +273,17 @@ def modulo_choose(experiment_hashable_name, alternatives, identity):
         if index_weight >= current_weight:
             return alternative
 
+def create_redirect_url(destination, conversion_names):
+    """ Create a URL that redirects to destination after scoring conversions
+    in all listed conversion names
+    """
+
+    result = "/gae_bingo/redirect?continue=%s" % urllib.quote(destination)
+
+    if type(conversion_names) != list:
+        conversion_names = [conversion_names]
+
+    for conversion_name in conversion_names:
+        result += "&conversion_name=%s" % urllib.quote(conversion_name)
+
+    return result

@@ -15,11 +15,16 @@ class GAEBingoIdentityModel(db.Model):
     gae_bingo_identity = db.StringProperty()
 
 class ConversionTypes():
+    # Binary conversions are counted at most once per user
     Binary = "binary"
+
+    # Counting conversions increment each time
     Counting = "counting"
+
     @staticmethod
     def get_all_as_list():
         return [ConversionTypes.Binary, ConversionTypes.Counting]
+
     def __setattr__(self, attr, value):
         pass
 

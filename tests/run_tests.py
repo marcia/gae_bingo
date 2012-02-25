@@ -64,13 +64,13 @@ def run_tests():
     assert(sum(dict_conversions_server.values()) == 1)
     dict_conversions_server = test_response("count_conversions_in", {"experiment_name": "chimpanzees (2)"})
     assert(sum(dict_conversions_server.values()) == 1)
-
+ 
     # Delete all experiments for next round of tests (response should be count of experiments left)
     assert(test_response("delete_all") == 0)
 
     # Refresh bot's identity record so it doesn't pollute tests
     assert(test_response("refresh_identity_record", bot=True) == True)
-
+   
     # Participate in experiment A, check for correct alternative values being returned,
     for i in range(0, 20):
         assert(test_response("participate_in_monkeys") in [True, False])

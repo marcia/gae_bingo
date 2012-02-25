@@ -125,22 +125,35 @@ var gae_bingo = (function() {
     });
   };
 
-    if( $.isArray( conversion ) ) {
-      $.each( conversion, function( i, v ) {
-        post_conversion( stringify( v ) );
+  // create_redirect_url creates a redirect url as expected in gae_bingo/redirect.py
+  // **destination** (string) the destination url to redirect to
+  // **conversion_names** (string or Array) the conversion name(s) to score
+  //
+  // This is helpful for measuring click-through, since it is possible to navigate
+  // away before the client-side gae_bingo.bingo POST goes through.
+  // (Try it in Safari if you don't believe me!)
+  var create_redirect_url = function(destination, conversion_names) {
+      var result = "/gae_bingo/redirect";
+
+      result += "?continue=" + encodeURIComponent(destination);
+
+      if (!$.isArray(conversion_names)) {
+          conversion_names = [conversion_names];
+      }
+
+      _.each(conversion_names, function(name) {
+          result += "&conversion_name=" + encodeURIComponent(name);
       });
-    } else {
-      post_conversion( stringify( conversion ) );
-    }
 
-
+      return result;
   };
 
   return {
     init : init,
     ab_test : window.JSON ? ab_test : $.noop,
-    bingo : window.JSON ? convert : $.noop,
-    tests : tests
+    bingo : convert,
+    tests : tests,
+    create_redirect_url: create_redirect_url
   };
   
 })();
